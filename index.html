@@ -34,7 +34,6 @@
       margin-bottom: 16px;
     }
 
-    /* Section Configuration des Rappels */
     .time-picker-group {
       display: flex;
       gap: 8px;
@@ -64,7 +63,6 @@
       border: 1px solid var(--border);
     }
     
-    /* Boutons de Saisie Macro */
     .macro-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -83,14 +81,12 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-
     }
     .macro-btn:active {
       background: var(--primary);
       color: #000;
     }
 
-    /* Timeline & Ventilation */
     .entry-item {
       border-left: 3px solid var(--accent);
       padding-left: 12px;
@@ -128,11 +124,11 @@
   <h1>ChronoConscience</h1>
   <p class="sub">Capture rapide & ventilation de fin de journée</p>
 
-  <!-- Section 1: Activation des Notifications & Heures -->
   <div class="card">
     <h2>1. Configuration des Rappels</h2>
     <p class="sub">Programmez vos rappels quotidiens.</p>
     <button onclick="requestNotificationPermission()">🔔 Activer les notifications</button>
+    <button class="secondary" style="margin-top:8px;" onclick="testNotification()">🧪 Tester une notification (5 sec)</button>
     <div class="time-picker-group" style="margin-top:12px;">
       <input type="time" id="time1" value="11:00">
       <input type="time" id="time2" value="14:00">
@@ -141,7 +137,6 @@
     </div>
   </div>
 
-  <!-- Section 2: Capture Instantanée Macro -->
   <div class="card">
     <h2>2. Capture Instantanée (Macro)</h2>
     <p class="sub">Que veniez-vous de faire ces dernières heures ?</p>
@@ -153,7 +148,6 @@
     </div>
   </div>
 
-  <!-- Section 3: Bilan et Ventilation Micro -->
   <div class="card">
     <h2>3. Bilan du Soir (Ventilation Micro)</h2>
     <p class="sub">Précisez la sous-répartition de vos blocs.</p>
@@ -164,7 +158,6 @@
   </div>
 
   <script>
-    // --- GESTION DU STOCKAGE LOCAL ---
     function getEntries() {
       return JSON.parse(localStorage.getItem('time_tracker_entries') || '[]');
     }
@@ -217,20 +210,56 @@
       `).join('');
     }
 
-    // --- NOTIFICATIONS & RAPPELS ---
+    // --- SERVICE WORKER & NOTIFICATIONS SOUS ANDROID ---
+    let swRegistration = null;
+
+    if ('serviceWorker' in navigator) {
+      const swCode = `
+        self.addEventListener('install', e => self.skipWaiting());
+        self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+      `;
+      const blob = new Blob([swCode], { type: 'application/javascript' });
+      navigator.serviceWorker.register(URL.createObjectURL(blob))
+        .then(reg => { swRegistration = reg; })
+        .catch(err => console.log('SW Error:', err));
+    }
+
     function requestNotificationPermission() {
       if ("Notification" in window) {
         Notification.requestPermission().then(permission => {
           if (permission === "granted") {
-            alert("Notifications activées !");
-            scheduleNextNotification();
+            alert("Notifications autorisées !");
+          } else {
+            alert("Permission refusée. Vérifiez les paramètres de votre navigateur.");
           }
         });
       }
     }
 
+    function sendNotification() {
+      if (Notification.permission === "granted") {
+        if (swRegistration) {
+          swRegistration.showNotification("ChronoConscience ⏳", {
+            body: "Qu'as-tu fait ces dernières heures ? Clic pour enregistrer.",
+            vibrate: [200, 100, 200],
+            requireInteraction: true
+          });
+        } else {
+          new Notification("ChronoConscience ⏳", {
+            body: "Qu'as-tu fait ces dernières heures ? Clic pour enregistrer."
+          });
+        }
+      }
+    }
+
+    function testNotification() {
+      alert("Test lancé. Verrouille ton écran ou change d'app, la notification arrivera dans 5 secondes.");
+      setTimeout(() => {
+        sendNotification();
+      }, 5000);
+    }
+
     function scheduleNextNotification() {
-      // Vérification régulière des heures configurées
       setInterval(() => {
         const now = new Date();
         const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -243,12 +272,7 @@
         ];
 
         if (times.includes(currentTime) && now.getSeconds() === 0) {
-          if (Notification.permission === "granted") {
-            new Notification("ChronoConscience ⏳", {
-              body: "Qu'as-tu fait ces dernières heures ? Ouvre l'application pour catégoriser.",
-              icon: "https://fav.farm/⏳"
-            });
-          }
+          sendNotification();
         }
       }, 1000);
     }
@@ -263,7 +287,6 @@
       downloadAnchor.remove();
     }
 
-    // Initialisation
     renderJournal();
     scheduleNextNotification();
   </script>
