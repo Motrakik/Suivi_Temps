@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronoConscience - Suivi du Temps</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --card: #1e1e1e;
+      --primary: #bb86fc;
+      --accent: #03dac6;
+      --text: #e0e0e0;
+      --subtext: #a0a0a0;
+      --border: #2c2c2c;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 16px;
+      padding-bottom: 80px;
+    }
+    h1, h2 { font-weight: 600; color: var(--text); }
+    h1 { font-size: 1.4rem; color: var(--primary); margin-bottom: 4px; }
+    p.sub { font-size: 0.85rem; color: var(--subtext); margin-top: 0; margin-bottom: 20px; }
+    
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    /* Section Configuration des Rappels */
+    .time-picker-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    input[type="time"] {
+      background: #2a2a2a;
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    button {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #2a2a2a;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    
+    /* Boutons de Saisie Macro */
+    .macro-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .macro-btn {
+      background: #282828;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 14px 10px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+
+    }
+    .macro-btn:active {
+      background: var(--primary);
+      color: #000;
+    }
+
+    /* Timeline & Ventilation */
+    .entry-item {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      margin-bottom: 16px;
+    }
+    .entry-header {
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: bold;
+    }
+    .entry-tag {
+      display: inline-block;
+      background: #2d2638;
+      color: var(--primary);
+      font-size: 0.8rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin: 4px 0 8px 0;
+    }
+    textarea {
+      width: 100%;
+      background: #2a2a2a;
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 0.85rem;
+      box-sizing: border-box;
+      resize: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>ChronoConscience</h1>
+  <p class="sub">Capture rapide & ventilation de fin de journée</p>
+
+  <!-- Section 1: Activation des Notifications & Heures -->
+  <div class="card">
+    <h2>1. Configuration des Rappels</h2>
+    <p class="sub">Programmez vos rappels quotidiens.</p>
+    <button onclick="requestNotificationPermission()">🔔 Activer les notifications</button>
+    <div class="time-picker-group" style="margin-top:12px;">
+      <input type="time" id="time1" value="11:00">
+      <input type="time" id="time2" value="14:00">
+      <input type="time" id="time3" value="17:00">
+      <input type="time" id="time4" value="20:00">
+    </div>
+  </div>
+
+  <!-- Section 2: Capture Instantanée Macro -->
+  <div class="card">
+    <h2>2. Capture Instantanée (Macro)</h2>
+    <p class="sub">Que veniez-vous de faire ces dernières heures ?</p>
+    <div class="macro-grid">
+      <button class="macro-btn" onclick="addMacroEntry('💻 Devant l\'écran')">💻 Écran</button>
+      <button class="macro-btn" onclick="addMacroEntry('🏃 Extérieur')">🏃 Extérieur</button>
+      <button class="macro-btn" onclick="addMacroEntry('🏠 Maison & Soin')">🏠 Maison</button>
+      <button class="macro-btn" onclick="addMacroEntry('☕ Pause & Social')">☕ Pause</button>
+    </div>
+  </div>
+
+  <!-- Section 3: Bilan et Ventilation Micro -->
+  <div class="card">
+    <h2>3. Bilan du Soir (Ventilation Micro)</h2>
+    <p class="sub">Précisez la sous-répartition de vos blocs.</p>
+    <div id="journal-list">
+      <p style="color: var(--subtext); font-size: 0.85rem;">Aucune saisie pour l'instant aujourd'hui.</p>
+    </div>
+    <button class="secondary" style="width:100%; margin-top:10px;" onclick="exportData()">📥 Exporter la journée (JSON)</button>
+  </div>
+
+  <script>
+    // --- GESTION DU STOCKAGE LOCAL ---
+    function getEntries() {
+      return JSON.parse(localStorage.getItem('time_tracker_entries') || '[]');
+    }
+
+    function saveEntries(entries) {
+      localStorage.setItem('time_tracker_entries', JSON.stringify(entries));
+      renderJournal();
+    }
+
+    function addMacroEntry(category) {
+      const entries = getEntries();
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      entries.push({
+        id: Date.now(),
+        time: timeStr,
+        category: category,
+        details: ""
+      });
+      
+      saveEntries(entries);
+      alert(`Enregistré : ${category} à ${timeStr}`);
+    }
+
+    function updateDetails(id, text) {
+      const entries = getEntries();
+      const item = entries.find(e => e.id === id);
+      if (item) {
+        item.details = text;
+        localStorage.setItem('time_tracker_entries', JSON.stringify(entries));
+      }
+    }
+
+    function renderJournal() {
+      const entries = getEntries();
+      const container = document.getElementById('journal-list');
+      
+      if (entries.length === 0) {
+        container.innerHTML = '<p style="color: var(--subtext); font-size: 0.85rem;">Aucune saisie pour l\'instant aujourd\'hui.</p>';
+        return;
+      }
+
+      container.innerHTML = entries.map(item => `
+        <div class="entry-item">
+          <div class="entry-header">Heure du pointage : ${item.time}</div>
+          <div class="entry-tag">${item.category}</div>
+          <textarea rows="2" placeholder="Ex: 1h30 Animation / 0h30 E-mails..." onchange="updateDetails(${item.id}, this.value)">${item.details}</textarea>
+        </div>
+      `).join('');
+    }
+
+    // --- NOTIFICATIONS & RAPPELS ---
+    function requestNotificationPermission() {
+      if ("Notification" in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            alert("Notifications activées !");
+            scheduleNextNotification();
+          }
+        });
+      }
+    }
+
+    function scheduleNextNotification() {
+      // Vérification régulière des heures configurées
+      setInterval(() => {
+        const now = new Date();
+        const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        
+        const times = [
+          document.getElementById('time1').value,
+          document.getElementById('time2').value,
+          document.getElementById('time3').value,
+          document.getElementById('time4').value
+        ];
+
+        if (times.includes(currentTime) && now.getSeconds() === 0) {
+          if (Notification.permission === "granted") {
+            new Notification("ChronoConscience ⏳", {
+              body: "Qu'as-tu fait ces dernières heures ? Ouvre l'application pour catégoriser.",
+              icon: "https://fav.farm/⏳"
+            });
+          }
+        }
+      }, 1000);
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(getEntries(), null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `suivi_temps_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // Initialisation
+    renderJournal();
+    scheduleNextNotification();
+  </script>
+</body>
+</html>
